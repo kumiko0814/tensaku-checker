@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>添削チェッカー｜Merone</title>
 <!-- MARKER: TENSAKU-CHECKER-V2 -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=20260717a"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=20260717b"></script>
 <style>
 :root{
   --bg:#EDF3F9; --navy:#1F3A5F; --navy2:#2C4A73; --pink:#D98A94; --pink2:#C67680;
@@ -222,7 +222,7 @@ body{padding-bottom:96px;}
 <div class="mask" id="mPaste">
   <div class="modal">
     <h2>📥 トークからまとめて取込</h2>
-    <div class="hintbox">PC版LINEでオープンチャット（提出スレッド）の範囲をコピーして貼り付け→「解析」。リンク（URL）の行を自動で拾って、同じ人の連続投稿は「リンク◯本」にまとめます。写真の行も拾えます。</div>
+    <div class="hintbox">PC版LINEで提出スレッドを<b>上から下まで全部コピー</b>→貼り付け→「解析」でOK！<br>すでに取込済みの分は<b>自動でスキップ</b>されるので、何回貼っても重複しません。新しい提出だけが出てきます（リンクの日も写真の日も対応）。</div>
     <textarea id="pText" placeholder="ここに貼り付け"></textarea>
     <div class="mrow"><button class="mbtn no" onclick="parsePaste()">🔍 解析する</button></div>
     <div class="pv" id="pvBox" style="display:none"></div>
@@ -691,26 +691,51 @@ function parsePaste(){
   flush();
   if(!found.length){toast('リンクや画像の投稿が見つかりませんでした。手動登録をお願いします');return;}
   var cf=curConfig();var req=(cf&&cf.req)||3;
-  pasteRows=found.map(function(f){
-    var dup=Object.keys(items).some(function(k){var it=items[k];return it.d===f.d&&it.n===f.n;});
-    return {n:f.n,t:f.t,d:f.d,c:f.c,kind:f.kind,dup:dup,use:!dup,redo:dup};
+  // 同じ人の離れたブロック（朝と夕方など）を人単位に合算
+  var byPerson={};
+  found.forEach(function(f){
+    var pk=f.d+'|'+f.n;
+    if(!byPerson[pk])byPerson[pk]={n:f.n,t:f.t,d:f.d,c:0,kind:f.kind};
+    byPerson[pk].c+=f.c;if(f.kind)byPerson[pk].kind=f.kind;
   });
-  renderPv(req);
+  // 差分取込: 登録済み本数と比べて「新しい分だけ」候補に。取込済みは自動スキップ（何回貼ってもOK）
+  var skipped=[];
+  pasteRows=[];
+  Object.keys(byPerson).forEach(function(pk){
+    var f=byPerson[pk];
+    var exist=Object.keys(items).filter(function(k){var it=items[k];return it.d===f.d&&it.n===f.n;}).length;
+    var newC=f.c-exist;
+    if(newC<=0){skipped.push(f.n);return;}
+    pasteRows.push({n:f.n,t:f.t,d:f.d,c:newC,exist:exist,kind:f.kind,use:true,redo:exist>=req});
+  });
+  lastSkipped=skipped;
+  renderPv(req,skipped);
+  if(!pasteRows.length){
+    document.getElementById('pImportBtn').style.display='none';
+    toast('新しい提出はありませんでした（'+skipped.length+'人分はすでに取込済み）');return;
+  }
   document.getElementById('pImportBtn').style.display='block';
-  toast(found.length+'人分 見つかりました。内容を確認してね');
+  toast('新しい提出 '+pasteRows.length+'人分が見つかりました！');
 }
-function renderPv(req){
+var lastSkipped=[];
+function renderPv(req,skipped){
+  if(skipped==null)skipped=lastSkipped;
   var box=document.getElementById('pvBox');box.style.display='block';
   var kindLb={link:'リンク',photo:'写真'};
-  box.innerHTML=pasteRows.map(function(r,i){
-    var lackTag=(r.kind==='link'&&r.c<req)?' <span class="badge b-lack">⚠'+r.c+'/'+req+'</span>':'';
-    return '<div class="pvi'+(r.dup&&!r.use?' dup':'')+'">'+
+  var h='';
+  if(skipped&&skipped.length){
+    h+='<div class="pvi" style="color:#8A97A5;font-size:11.5px">✅ すでに取込済みでスキップ: '+skipped.map(esc).join('、')+'</div>';
+  }
+  h+=pasteRows.map(function(r,i){
+    var extTag=r.exist?' <span style="color:#8A97A5;font-size:11px">（'+r.exist+'本は取込済み → 追加分だけ）</span>':'';
+    var lackTag=(r.kind==='link'&&!r.redo&&(r.exist+r.c)<req)?' <span class="badge b-lack">⚠'+(r.exist+r.c)+'/'+req+'</span>':'';
+    return '<div class="pvi">'+
       '<input type="checkbox" '+(r.use?'checked':'')+' onchange="pasteRows['+i+'].use=this.checked">'+
-      '<span style="flex:1"><b>'+esc(r.t)+'</b> '+esc(r.n)+'さん（'+(kindLb[r.kind]||'提出')+r.c+'本）'+lackTag+
-      (r.dup?' <span style="color:#8A97A5;font-size:11px">既に登録あり</span>':'')+'</span>'+
-      '<span class="redotgl'+(r.redo?' on':'')+'" onclick="pasteRows['+i+'].redo=!pasteRows['+i+'].redo;renderPv('+req+')">🔄 再提出</span>'+
+      '<span style="flex:1"><b>'+esc(r.t)+'</b> '+esc(r.n)+'さん <b>＋'+r.c+'本</b>'+extTag+lackTag+'</span>'+
+      '<span class="redotgl'+(r.redo?' on':'')+'" onclick="pasteRows['+i+'].redo=!pasteRows['+i+'].redo;renderPv('+req+',null)">🔄 再提出</span>'+
       '</div>';
   }).join('');
+  box.innerHTML=h;
 }
 function importPaste(){
   var use=pasteRows.filter(function(r){return r.use&&r.c>0;});
