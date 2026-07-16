@@ -291,6 +291,7 @@ function deleteItem(key){
 }
 function subscribeRT(){
   if(!sb)return;
+  if(/[?&]nort=1/.test(location.search)){dlog('RT skipped (nort=1)');return;}
   try{
     sb.channel('tensaku_'+CH).on('postgres_changes',
       {event:'*',schema:'public',table:'promo_tasks',filter:'run_id=eq.'+RUN_ID},
