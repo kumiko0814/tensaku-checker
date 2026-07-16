@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>添削もれゼロチェッカー｜Merone</title>
 <!-- MARKER: TENSAKU-CHECKER-V1 -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=20260716a"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=20260716b"></script>
 <style>
 :root{
   --bg:#EDF3F9; --navy:#1F3A5F; --navy2:#2C4A73; --pink:#D98A94; --pink2:#C67680;
@@ -27,6 +27,9 @@ body{padding-bottom:90px;}
 .hd .me .diag{background:none;border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:20px;padding:4px 10px;font-size:11px;cursor:pointer;}
 /* LINE browser hint */
 .linehint{background:#FFF6DC;border:1px solid #E8CE7A;border-radius:10px;padding:8px 12px;font-size:12px;margin-bottom:10px;display:none;}
+.taskbar{background:#fff;border:1.5px solid var(--navy2);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px;cursor:pointer;}
+.taskbar .req{color:var(--pink2);}
+.lack{background:#FBDAD5;color:var(--red);font-size:11px;border-radius:10px;padding:2px 8px;font-weight:700;}
 /* stats */
 .stats{display:flex;gap:6px;margin-bottom:10px;}
 .st{flex:1;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 4px;text-align:center;}
@@ -124,6 +127,8 @@ body{padding-bottom:90px;}
 
   <div class="linehint" id="lineHint">💡 LINEの中で開いています。右下の共有ボタン→「他のアプリ」→ Chrome/Safari で開くとより快適です（このままでも使えます）</div>
 
+  <div class="taskbar" id="taskBar" onclick="editTask()">📌 今日の課題: <span id="taskTitle">未設定（タップして設定）</span> ✏️</div>
+
   <div class="stats" id="stats"></div>
   <div class="bar"><i id="barIn" style="width:0%"></i></div>
 
@@ -137,6 +142,11 @@ body{padding-bottom:90px;}
 
   <div id="list"></div>
 
+  <div class="sec" id="missingSec" style="display:none">
+    <h3>⏳ この日まだ提出が見えていない人（過去に提出歴あり）</h3>
+    <div class="rank" id="missing">—</div>
+  </div>
+
   <div class="sec">
     <h3>🏅 添削がんばった人（この日）</h3>
     <div class="rank" id="rank">—</div>
@@ -145,11 +155,12 @@ body{padding-bottom:90px;}
   <div class="sec">
     <h3>📖 使い方（3ステップ）</h3>
     <div class="howto">
-      ① オプチャで課題写真を見つけたら → 下の<b>「＋提出を見つけた」</b>で名前と時刻を登録（5秒）<br>
+      ⓪ その日の課題（内容と1人あたりの個数）を上の<b>📌課題バー</b>に設定<br>
+      ① オプチャで課題投稿（リンクや写真）を見つけたら → 下の<b>「＋提出を見つけた」</b>で名前・時刻・個数を登録（5秒）<br>
       ② 添削する人は <b>✋担当する</b> を押してから添削（かぶり防止）<br>
       ③ 添削コメントを送ったら <b>✅添削完了</b><br>
-      🔴が0になれば抜け漏れゼロ！ みんなの画面に即反映されます✨<br>
-      💡 PC版LINEならトークをコピーして「📥まとめて取込」に貼ると自動で拾えます<br>
+      🔴が0になれば添削漏れゼロ、⏳欄で提出漏れも見えます✨<br>
+      💡 PC版LINEでオプチャのトークをコピーして「📥まとめて取込」に貼ると、リンクも写真も自動で拾えます<br>
       困った時はサポーターグループでくみこまで☺️
     </div>
   </div>
@@ -166,8 +177,10 @@ body{padding-bottom:90px;}
     <datalist id="nameList"></datalist>
     <label>投稿時刻</label>
     <input type="time" id="aTime">
+    <label>提出物の数（リンク◯本・写真◯枚など）<span id="aCountHint" style="color:#8A97A5;font-weight:400"></span></label>
+    <input type="number" id="aCount" min="0" max="99" value="1" inputmode="numeric" style="width:100%;border:1.5px solid var(--line);border-radius:10px;padding:10px;font-size:16px;background:#FBFDFF;">
     <label>メモ（任意）</label>
-    <input type="text" id="aNote" placeholder="例）FURLAの財布／2点目／写真5枚">
+    <input type="text" id="aNote" placeholder="例）FURLAの財布／2点目">
     <div class="mrow">
       <button class="mbtn no" onclick="closeM('mAdd')">やめる</button>
       <button class="mbtn ok" onclick="submitAdd()">登録する</button>
@@ -178,8 +191,8 @@ body{padding-bottom:90px;}
 <!-- ペースト取込モーダル -->
 <div class="mask" id="mPaste">
   <div class="modal">
-    <h2>📥 LINEトークからまとめて取込</h2>
-    <div class="hintbox">PC版LINEでトークの範囲をコピー、またはスマホの「トーク履歴を送信」のテキストを貼り付けてください。「画像」「写真」の行を自動で拾います。同じ人が同じ時刻に複数枚→1件にまとめます。</div>
+    <h2>📥 オプチャのトークからまとめて取込</h2>
+    <div class="hintbox">PC版LINEでオープンチャット（課題提出スレッド）の範囲をコピーして貼り付けてください。<b>リンク（URL）行と「画像/写真」行を自動で拾い</b>、同じ人の連続投稿は1件にまとめて数をカウントします。リンク課題の日も写真課題の日もOK。</div>
     <textarea id="pText" placeholder="ここに貼り付け"></textarea>
     <div class="mrow"><button class="mbtn no" onclick="parsePaste()">🔍 解析する</button></div>
     <div class="pv" id="pvBox" style="display:none"></div>
@@ -213,7 +226,7 @@ function sosTap(){var d=document.getElementById('dbg');
   try{document.getElementById('ovl').style.display='none';}catch(e){}}
 
 // ============ 状態 ============
-var sb=null, items={}, myName=localStorage.getItem('tensaku_myname')||'', selDay='', filt='all', pollTimer=null, pasteRows=[];
+var sb=null, items={}, configs={}, myName=localStorage.getItem('tensaku_myname')||'', selDay='', filt='all', pollTimer=null, pasteRows=[];
 var ST={none:{lb:'🔴 未対応',cls:'none'},wip:{lb:'🟡 対応中',cls:'wip'},hold:{lb:'⏸ 保留',cls:'hold'},done:{lb:'✅ 添削済み',cls:'done'}};
 
 function jstNow(){return new Date(Date.now()+ (9*60 - (-new Date().getTimezoneOffset()))*0 );}
@@ -259,21 +272,46 @@ function needName(){if(!myName){setMyName(true);return !myName;}return false;}
 function rowToItem(r){
   var m={};try{m=JSON.parse(r.memo||'{}');}catch(e){}
   return {key:r.task_key, st:r.owner_depts||'none', by:r.owner_members||'',
-    n:m.n||'', t:m.t||'', d:m.d||'', note:m.note||'', reg:m.reg||'', doneAt:m.doneAt||'', up:r.updated_at||''};
+    n:m.n||'', t:m.t||'', d:m.d||'', c:(m.c==null?1:+m.c), note:m.note||'', reg:m.reg||'', doneAt:m.doneAt||'', up:r.updated_at||''};
 }
 function itemToRow(it){
   return {run_id:RUN_ID, task_key:it.key, done:(it.st==='done'), owner_depts:it.st, owner_members:it.by||null,
-    memo:JSON.stringify({n:it.n,t:it.t,d:it.d,note:it.note,reg:it.reg,doneAt:it.doneAt}), link_url:'', updated_at:new Date().toISOString()};
+    memo:JSON.stringify({n:it.n,t:it.t,d:it.d,c:it.c,note:it.note,reg:it.reg,doneAt:it.doneAt}), link_url:'', updated_at:new Date().toISOString()};
+}
+function applyRow(r){
+  if(r.task_key.indexOf('config_')===0){
+    try{configs[r.task_key.slice(7)]=JSON.parse(r.memo||'{}');}catch(e){}
+  }else{
+    var it=rowToItem(r);items[it.key]=it;
+  }
 }
 function loadAll(){
   if(!sb)return;
   sb.from('promo_tasks').select('*').eq('run_id',RUN_ID).then(function(res){
     if(res.error){dlog('❌load: '+res.error.message);return;}
-    items={};
-    (res.data||[]).forEach(function(r){var it=rowToItem(r);items[it.key]=it;});
+    items={};configs={};
+    (res.data||[]).forEach(applyRow);
     dlog('load ok '+(res.data||[]).length+'件');
     render();
   });
+}
+// 今日の課題設定（課題名＋1人あたり必要提出数）
+function curConfig(){var d=(selDay==='ALL')?jstDateStr():selDay;return configs[d]||null;}
+function editTask(){
+  if(needName())return;
+  var d=(selDay==='ALL')?jstDateStr():selDay;
+  var cf=configs[d]||{};
+  var title=prompt(mdLabel(d)+' の課題内容（例：メルカリに出品したリンクを3つ提出）',cf.title||'');
+  if(title===null)return;
+  var req=prompt('1人あたりの必要提出数（リンク3つなら 3、写真1枚なら 1）',cf.req||1);
+  if(req===null)return;
+  var conf={title:(title||'').trim().slice(0,60),req:Math.max(1,parseInt(req,10)||1)};
+  configs[d]=conf;render();
+  sb.from('promo_tasks').upsert({run_id:RUN_ID,task_key:'config_'+d,done:false,owner_depts:'config',owner_members:null,
+    memo:JSON.stringify(conf),link_url:'',updated_at:new Date().toISOString()},{onConflict:'run_id,task_key'}).then(function(res){
+      if(res.error){dlog('❌config: '+res.error.message);toast('課題設定の保存に失敗しました');}
+      else{toast('今日の課題を設定しました！全員に共有されます');}
+    });
 }
 function saveItem(it,cb){
   if(!sb){toast('通信できません。再読み込みしてください');return;}
@@ -298,7 +336,7 @@ function subscribeRT(){
       function(payload){
         try{
           if(payload.eventType==='DELETE'){var k=payload.old&&payload.old.task_key;if(k){delete items[k];}}
-          else{var it=rowToItem(payload.new);items[it.key]=it;}
+          else{applyRow(payload.new);}
           render();dlog('RT '+payload.eventType);
         }catch(e){dlog('❌RT: '+e.message);}
       }).subscribe(function(s){dlog('RT status: '+s);});
@@ -330,6 +368,12 @@ function render(){
     .filter(function(it){return selDay==='ALL'||it.d===selDay;})
     .sort(function(a,b){return (a.d+a.t).localeCompare(b.d+b.t);});
 
+  // 今日の課題バー
+  var cf=curConfig();
+  document.getElementById('taskTitle').innerHTML=cf&&cf.title
+    ? esc(cf.title)+'（1人 <span class="req">'+(cf.req||1)+'個</span>）'
+    : '未設定（タップして設定）';
+
   // stats
   var n={none:0,wip:0,hold:0,done:0};list.forEach(function(it){n[it.st]=(n[it.st]||0)+1;});
   var tot=list.length;
@@ -355,6 +399,20 @@ function render(){
   if(!shown.length){box.innerHTML='<div class="empty">'+(tot?'この条件の提出はありません☺️':'まだ登録がありません。<br>オプチャで課題写真を見つけたら「＋提出を見つけた」で登録してね☺️')+'</div>';}
   shown.forEach(function(it){box.appendChild(cardEl(it));});
 
+  // ⏳提出まだの人（過去日に提出歴があり、選択日に提出がない人）
+  var msec=document.getElementById('missingSec');
+  if(selDay!=='ALL'){
+    var todayNames={};list.forEach(function(it){todayNames[it.n]=1;});
+    var pastNames={};
+    Object.keys(items).forEach(function(k){var it=items[k];if(it.d<selDay&&it.n)pastNames[it.n]=1;});
+    var missing=Object.keys(pastNames).filter(function(nm){return !todayNames[nm];}).sort();
+    if(missing.length){
+      msec.style.display='block';
+      document.getElementById('missing').innerHTML=missing.map(function(nm){return '・'+esc(nm)+'さん';}).join('<br>')+
+        '<div style="font-size:11px;color:#8A97A5;margin-top:6px">※オプチャを確認して、投稿があれば登録してあげてください（登録漏れの可能性もあります）</div>';
+    }else{msec.style.display='none';}
+  }else{msec.style.display='none';}
+
   // rank
   var rk={};list.forEach(function(it){if(it.st==='done'&&it.by){rk[it.by]=(rk[it.by]||0)+1;}});
   var rks=Object.keys(rk).sort(function(a,b){return rk[b]-rk[a];});
@@ -367,8 +425,14 @@ function render(){
 }
 function cardEl(it){
   var d=document.createElement('div');d.className='card s-'+ST[it.st].cls;
+  var cf=configs[it.d];var req=(cf&&cf.req)||1;
   var h='<div class="top"><span class="tm">'+esc(it.t||'--:--')+'</span><span class="nm">'+esc(it.n)+'さん</span>'+
-    '<span class="badge b-'+ST[it.st].cls+'">'+ST[it.st].lb+'</span></div>';
+    '<span class="badge b-'+ST[it.st].cls+'">'+ST[it.st].lb+'</span>';
+  if(req>1||it.c>1){
+    h+=(it.c<req)?'<span class="lack">⚠ '+it.c+'/'+req+'個 不足かも</span>'
+      :'<span class="badge" style="background:#E3ECF4;color:#2C4A73">📎 '+it.c+'個</span>';
+  }
+  h+='</div>';
   if(it.note)h+='<div class="note">📝 '+esc(it.note)+'</div>';
   if(it.st==='wip'&&it.by)h+='<div class="by">✋ '+esc(it.by)+'さんが対応中</div>';
   if(it.st==='done')h+='<div class="by">✅ '+esc(it.by||'?')+'さんが添削済み'+(it.doneAt?'（'+esc(it.doneAt)+'）':'')+'</div>';
@@ -393,7 +457,7 @@ function claim(key){
   // かぶり防止：未対応/保留のままの行だけ更新（条件付き更新）
   var prev=it.st;
   sb.from('promo_tasks').update({owner_depts:'wip',owner_members:myName,updated_at:new Date().toISOString(),
-      memo:JSON.stringify({n:it.n,t:it.t,d:it.d,note:it.note,reg:it.reg,doneAt:''})})
+      memo:JSON.stringify({n:it.n,t:it.t,d:it.d,c:it.c,note:it.note,reg:it.reg,doneAt:''})})
     .eq('run_id',RUN_ID).eq('task_key',key).eq('owner_depts',prev).select().then(function(res){
       if(res.error){dlog('❌claim: '+res.error.message);toast('通信エラー。もう一度お試しください');return;}
       if(!res.data||!res.data.length){toast('あら、たった今ほかの方が担当したみたいです☺️');loadAll();return;}
@@ -427,8 +491,11 @@ function delAsk(key){
 // ============ 追加 ============
 function openAdd(){
   if(needName())return;
+  var cf=curConfig();var req=(cf&&cf.req)||1;
   document.getElementById('aName').value='';
   document.getElementById('aTime').value=jstTimeStr();
+  document.getElementById('aCount').value=req;
+  document.getElementById('aCountHint').textContent=cf&&cf.title?'（今日の課題は1人'+req+'個）':'';
   document.getElementById('aNote').value='';
   document.getElementById('mAdd').classList.add('show');
   setTimeout(function(){try{document.getElementById('aName').focus();}catch(e){}},100);
@@ -437,13 +504,14 @@ function closeM(id){document.getElementById(id).classList.remove('show');}
 function submitAdd(){
   var n=document.getElementById('aName').value.trim();
   var t=document.getElementById('aTime').value||jstTimeStr();
+  var c=Math.max(0,parseInt(document.getElementById('aCount').value,10)||1);
   var note=document.getElementById('aNote').value.trim();
   if(!n){toast('提出した人の名前を入れてください');return;}
   var d=(selDay==='ALL')?jstDateStr():selDay;
-  // 重複チェック（同じ日・同じ名前・同じ時刻）
-  var dup=Object.keys(items).some(function(k){var it=items[k];return it.d===d&&it.n===n&&it.t===t;});
-  if(dup&&!confirm('同じ時刻・同じ名前の登録が既にあります。それでも登録しますか？'))return;
-  var it={key:uid(),st:'none',by:'',n:n,t:t,d:d,note:note,reg:myName,doneAt:''};
+  // 重複チェック（同じ日・同じ名前）
+  var dup=Object.keys(items).some(function(k){var it=items[k];return it.d===d&&it.n===n;});
+  if(dup&&!confirm('同じ日に同じ名前の登録が既にあります。追加分（2点目など）なら OK を押してください'))return;
+  var it={key:uid(),st:'none',by:'',n:n,t:t,d:d,c:c,note:note,reg:myName,doneAt:''};
   items[it.key]=it;render();closeM('mAdd');
   saveItem(it,function(){toast(n+'さんの提出を登録しました！');});
 }
@@ -457,40 +525,75 @@ function openPaste(){
   pasteRows=[];
   document.getElementById('mPaste').classList.add('show');
 }
+// 1行の中の「提出物」を数える: URL=リンク数 / 画像・写真=枚数
+function countPayload(s){
+  if(!s)return {c:0,kind:''};
+  var u=s.match(/https?:\/\/[^\s]+/g);
+  if(u)return {c:u.length,kind:'link'};
+  if(/(画像|写真を送信しました|\[写真\]|\[画像\]|^画像$|^写真$|☆写真☆)/.test(s))return {c:1,kind:'photo'};
+  return {c:0,kind:''};
+}
 function parsePaste(){
   var txt=document.getElementById('pText').value;
   if(!txt.trim()){toast('テキストを貼り付けてください');return;}
   var lines=txt.split(/\r?\n/);
   var curDate=(selDay==='ALL')?jstDateStr():selDay;
-  var found=[];
+  var found=[];var cur=null; // cur={n,t,d,c,kind}
+  function flush(){if(cur&&cur.c>0)found.push(cur);cur=null;}
   var dateRe=/^(\d{4})[.\/年](\d{1,2})[.\/月](\d{1,2})/;
-  var photoRe=/(画像|写真|\[写真\]|photo)/i;
+  var mobileRe=/^(\d{1,2}):(\d{2})[\t ]+(.+)$/;   // モバイルtxt: "17:51 名前 本文"
+  var pcHeadRe=/^(.{1,30}?)[\t ]+(\d{1,2}):(\d{2})$/; // PC版コピー: "名前 21:07"
+  var sysRe=/(が参加しました|を追加しました|送信を取り消しました|ノートを作成|グループに|^既読\s|^\d+人が既読)/;
   lines.forEach(function(raw){
-    var line=raw.trim();if(!line)return;
+    var line=raw.replace(/ /g,' ').trim();if(!line)return;
+    if(sysRe.test(line))return;
     var dm=line.match(dateRe);
-    if(dm){curDate=dm[1]+'-'+String(dm[2]).padStart(2,'0')+'-'+String(dm[3]).padStart(2,'0');return;}
-    // タブ区切り（トーク履歴txt）: "17:51\t名前\t画像" / スペース区切りにも対応
-    var m=line.match(/^(\d{1,2}):(\d{2})[\t ]+(.+)$/);
-    if(!m)return;
-    var t=String(m[1]).padStart(2,'0')+':'+m[2];
-    var rest=m[3];
-    if(!photoRe.test(rest))return;
-    var name=rest.replace(/[\t ]*(画像|写真を送信しました|\[写真\]|写真)[\t ]*$/i,'').trim();
-    if(!name||/^(画像|写真)/.test(name))return;
-    // 同じ人・同じ時刻の連続写真は1件にまとめて枚数カウント
-    var last=found[found.length-1];
-    if(last&&last.n===name&&last.t===t&&last.d===curDate){last.c++;return;}
-    found.push({n:name,t:t,d:curDate,c:1});
+    if(dm){flush();curDate=dm[1]+'-'+String('0'+dm[2]).slice(-2)+'-'+String('0'+dm[3]).slice(-2);return;}
+    var m=line.match(mobileRe);
+    if(m&&!/^https?:\/\//.test(m[3])){
+      var t=String('0'+m[1]).slice(-2)+':'+m[2];
+      var rest=m[3],name='',body='';
+      var ti=rest.indexOf('\t');
+      if(ti>0){name=rest.slice(0,ti).trim();body=rest.slice(ti+1).trim();}
+      else{
+        var um=rest.search(/https?:\/\//);
+        if(um>0){name=rest.slice(0,um).trim();body=rest.slice(um);}
+        else{
+          var pm=rest.match(/[\t ](画像|写真|\[写真\]|\[画像\])$/);
+          if(pm){name=rest.slice(0,pm.index).trim();body=pm[1];}
+          else{name=rest.trim();body='';}
+        }
+      }
+      if(!name||/^(画像|写真)$/.test(name))return;
+      var p=countPayload(body);
+      if(cur&&cur.n===name&&cur.d===curDate){cur.c+=p.c;if(p.kind)cur.kind=p.kind;}
+      else{flush();cur={n:name,t:t,d:curDate,c:p.c,kind:p.kind};}
+      return;
+    }
+    var ph=line.match(pcHeadRe);
+    if(ph&&!/https?:\/\//.test(ph[1])){
+      var nm2=ph[1].trim();
+      var t2=String('0'+ph[2]).slice(-2)+':'+ph[3];
+      if(cur&&cur.n===nm2&&cur.d===curDate){cur.t=cur.t||t2;}
+      else{flush();cur={n:nm2,t:t2,d:curDate,c:0,kind:''};}
+      return;
+    }
+    // 本文行 → 直前の話者に帰属
+    if(cur){var p2=countPayload(line);cur.c+=p2.c;if(p2.kind)cur.kind=p2.kind;}
   });
-  if(!found.length){toast('「画像」「写真」の行が見つかりませんでした');return;}
+  flush();
+  if(!found.length){toast('リンクや画像の投稿が見つかりませんでした。形式が違う場合は手動登録をお願いします');return;}
+  var kindLb={link:'リンク',photo:'写真',['']:'提出物'};
   pasteRows=found.map(function(f){
-    var dup=Object.keys(items).some(function(k){var it=items[k];return it.d===f.d&&it.n===f.n&&it.t===f.t;});
-    return {n:f.n,t:f.t,d:f.d,c:f.c,dup:dup,use:!dup};
+    var dup=Object.keys(items).some(function(k){var it=items[k];return it.d===f.d&&it.n===f.n;});
+    return {n:f.n,t:f.t,d:f.d,c:f.c,kind:f.kind,dup:dup,use:!dup};
   });
   var box=document.getElementById('pvBox');box.style.display='block';
+  var cf2=curConfig();var req2=(cf2&&cf2.req)||1;
   box.innerHTML=pasteRows.map(function(r,i){
+    var lackTag=(r.c<req2&&req2>1)?' <span class="lack">⚠'+r.c+'/'+req2+'</span>':'';
     return '<div class="pvi'+(r.dup?' dup':'')+'"><input type="checkbox" '+(r.use?'checked':'')+' onchange="pasteRows['+i+'].use=this.checked">'+
-      '<span><b>'+esc(r.t)+'</b> '+esc(r.n)+'さん'+(r.c>1?'（写真'+r.c+'枚）':'')+' <span style="color:#8A97A5">'+mdLabel(r.d)+'</span>'+(r.dup?'（登録済み）':'')+'</span></div>';
+      '<span><b>'+esc(r.t)+'</b> '+esc(r.n)+'さん（'+kindLb[r.kind]+r.c+'個）'+lackTag+' <span style="color:#8A97A5">'+mdLabel(r.d)+'</span>'+(r.dup?'（登録済み）':'')+'</span></div>';
   }).join('');
   document.getElementById('pImportBtn').style.display='block';
   toast(found.length+'件 見つかりました。不要なものはチェックを外してね');
@@ -500,7 +603,8 @@ function importPaste(){
   if(!use.length){toast('取込むものがありません');return;}
   var done=0;
   use.forEach(function(r){
-    var it={key:uid(),st:'none',by:'',n:r.n,t:r.t,d:r.d,note:(r.c>1?'写真'+r.c+'枚':''),reg:myName+'(一括)',doneAt:''};
+    var kindLb={link:'リンク',photo:'写真',['']:'提出物'};
+    var it={key:uid(),st:'none',by:'',n:r.n,t:r.t,d:r.d,c:r.c,note:kindLb[r.kind]+r.c+'個',reg:myName+'(一括)',doneAt:''};
     items[it.key]=it;
     saveItem(it,function(){done++;if(done===use.length){toast(use.length+'件 取込みました！');}});
   });
@@ -514,12 +618,22 @@ function copyReport(){
     .sort(function(a,b){return (a.d+a.t).localeCompare(b.d+b.t);});
   var n={none:[],wip:[],hold:[],done:[]};
   list.forEach(function(it){n[it.st].push(it);});
+  var cf=configs[d];var req=(cf&&cf.req)||1;
   var L=[];
   L.push('📋 添削チェッカー '+mdLabel(d)+' '+jstTimeStr()+'時点');
+  if(cf&&cf.title)L.push('課題: '+cf.title);
   L.push('提出 '+list.length+'件｜✅済み '+n.done.length+'｜🟡対応中 '+n.wip.length+'｜⏸保留 '+n.hold.length+'｜🔴未対応 '+n.none.length);
   if(n.none.length){L.push('');L.push('🔴 未対応（お助けください！）');n.none.forEach(function(it){L.push('・'+it.t+' '+it.n+'さん'+(it.note?'（'+it.note+'）':''));});}
   if(n.wip.length){L.push('');L.push('🟡 対応中');n.wip.forEach(function(it){L.push('・'+it.t+' '+it.n+'さん → '+it.by+'さん対応中');});}
   if(n.hold.length){L.push('');L.push('⏸ 保留');n.hold.forEach(function(it){L.push('・'+it.t+' '+it.n+'さん'+(it.note?'（'+it.note+'）':''));});}
+  if(req>1){
+    var lack=list.filter(function(it){return it.c<req;});
+    if(lack.length){L.push('');L.push('⚠ 提出数が足りないかも（1人'+req+'個の課題）');lack.forEach(function(it){L.push('・'+it.t+' '+it.n+'さん（'+it.c+'/'+req+'個）');});}
+  }
+  var todayNames={};list.forEach(function(it){todayNames[it.n]=1;});
+  var pastNames={};Object.keys(items).forEach(function(k){var it=items[k];if(it.d<d&&it.n)pastNames[it.n]=1;});
+  var missing=Object.keys(pastNames).filter(function(nm){return !todayNames[nm];}).sort();
+  if(missing.length){L.push('');L.push('⏳ この日まだ提出が見えていない人（過去に提出歴あり）');L.push(missing.map(function(nm){return nm+'さん';}).join('、'));}
   if(!n.none.length&&!n.wip.length&&!n.hold.length&&list.length){L.push('');L.push('🎉 全件添削完了です！みなさまお疲れさまでした♡');}
   L.push('');L.push('チェッカー→ '+location.origin+location.pathname+'?ch='+CH);
   var text=L.join('\n');
