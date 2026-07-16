@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>添削チェッカー｜Merone</title>
 <!-- MARKER: TENSAKU-CHECKER-V2 -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=20260716d"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=20260717a"></script>
 <style>
 :root{
   --bg:#EDF3F9; --navy:#1F3A5F; --navy2:#2C4A73; --pink:#D98A94; --pink2:#C67680;
@@ -294,6 +294,15 @@ function init(){
         x.setRequestHeader('apikey',SB_KEY);x.setRequestHeader('Authorization','Bearer '+SB_KEY);
         x.send();
         JSON.parse(x.responseText).forEach(applyRow);render();dlog('shot sync load '+x.status);
+        // 横はみ出し計測（検証用）
+        var vw=document.documentElement.clientWidth;
+        dlog('scrollW='+document.documentElement.scrollWidth+' clientW='+vw);
+        var over=[];
+        document.querySelectorAll('body *').forEach(function(e){
+          var r=e.getBoundingClientRect();
+          if(r.right>vw+1&&r.width>10){over.push((e.className||e.id||e.tagName)+':'+Math.round(r.right));}
+        });
+        dlog('over(right>vw): '+over.slice(0,12).join(' | '));
       }catch(e){dlog('❌shot: '+e.message);}
     }
     loadAll();
