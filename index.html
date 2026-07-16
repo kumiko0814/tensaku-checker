@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>添削もれゼロチェッカー｜Merone</title>
 <!-- MARKER: TENSAKU-CHECKER-V1 -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=20260716b"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=20260716c"></script>
 <style>
 :root{
   --bg:#EDF3F9; --navy:#1F3A5F; --navy2:#2C4A73; --pink:#D98A94; --pink2:#C67680;
@@ -250,6 +250,16 @@ function init(){
     selDay=jstDateStr();
     renderMyName();
     if(!myName){setTimeout(function(){setMyName(true);},600);}
+    // 検証用: ?shot=1 で同期読込（load前に描画完了させheadlessスクショ/DOMダンプ用）
+    if(/[?&]shot=1/.test(location.search)){
+      try{
+        var x=new XMLHttpRequest();
+        x.open('GET',SB_URL+'/rest/v1/promo_tasks?run_id=eq.'+RUN_ID+'&select=*',false);
+        x.setRequestHeader('apikey',SB_KEY);x.setRequestHeader('Authorization','Bearer '+SB_KEY);
+        x.send();
+        JSON.parse(x.responseText).forEach(applyRow);render();dlog('shot sync load '+x.status);
+      }catch(e){dlog('❌shot: '+e.message);}
+    }
     loadAll();
     subscribeRT();
     pollTimer=setInterval(loadAll,20000);
