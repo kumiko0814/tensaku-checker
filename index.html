@@ -6,6 +6,7 @@
 <title>添削チェッカー｜Merone</title>
 <!-- MARKER: TENSAKU-CHECKER-V2 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=20260717b"></script>
+<script src="https://kumiko0814.github.io/merone-auth/admin-auth.js"></script>
 <style>
 :root{
   --bg:#EDF3F9; --navy:#1F3A5F; --navy2:#2C4A73; --pink:#D98A94; --pink2:#C67680;
@@ -282,7 +283,7 @@ function init(){
   try{
     dlog('init ch='+CH+' run='+RUN_ID);
     try{if(/ Line\//i.test(navigator.userAgent)){document.getElementById('lineHint').style.display='block';}}catch(e){}
-    if(window.supabase){sb=window.supabase.createClient(SB_URL,SB_KEY);dlog('supabase client ok');}
+    if(window.supabase&&MeroneAdminAuth.client()){sb=MeroneAdminAuth.client();dlog('supabase client ok ('+MeroneAdminAuth.mode()+')');}
     else{dlog('❌ supabase CDN 読込失敗');toast('通信の読込に失敗。電波の良い所で再読み込みしてください');}
     selDay=jstDateStr();
     renderMyName();
@@ -291,7 +292,7 @@ function init(){
       try{
         var x=new XMLHttpRequest();
         x.open('GET',SB_URL+'/rest/v1/promo_tasks?run_id=eq.'+RUN_ID+'&select=*',false);
-        x.setRequestHeader('apikey',SB_KEY);x.setRequestHeader('Authorization','Bearer '+SB_KEY);
+        x.setRequestHeader('apikey',SB_KEY);x.setRequestHeader('Authorization','Bearer '+MeroneAdminAuth.token());
         x.send();
         JSON.parse(x.responseText).forEach(applyRow);render();dlog('shot sync load '+x.status);
         // 横はみ出し計測（検証用）
@@ -814,7 +815,8 @@ function runDiag(){
   });
 }
 
-init();
+if(window.MeroneAdminAuth){MeroneAdminAuth.require({url:SB_URL,anonKey:SB_KEY,title:'添削チェッカー'}).then(init);}
+else{document.getElementById('ovl').textContent='ログイン部品を読み込めませんでした。電波の良い所で再読み込みしてください';}
 </script>
 </body>
 </html>
